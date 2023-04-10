@@ -1,27 +1,39 @@
-import 'dart:io';
+// ignore_for_file: use_build_context_synchronously
 
+import 'dart:io';
+import 'dart:math';
+
+import 'package:blog/models/blog.model.dart';
+import 'package:blog/pages/home.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../config.dart';
+import '../db-helper.dart';
 
 class BlogAddEdit extends StatefulWidget {
   final isAdd;
   final String? title, description;
+  final int? id;
   String? imageUrl;
   BlogAddEdit(
       {super.key,
       required this.isAdd,
       this.imageUrl,
       this.title,
-      this.description});
+      this.description,
+      this.id});
 
   @override
   State<BlogAddEdit> createState() => _BlogAddEditState();
 }
 
 class _BlogAddEditState extends State<BlogAddEdit> {
+  String selectedDate =
+      "${DateTime.now().day.toString().padLeft(2,'0')}-${DateTime.now().month.toString().padLeft(2,'0')}-${DateTime.now().year}";
+  DBHelper dbHelper = DBHelper();
   final ImagePicker picker = ImagePicker();
   File? imageFile;
   final TextEditingController titleTextEditingController =
@@ -55,13 +67,66 @@ class _BlogAddEditState extends State<BlogAddEdit> {
               ),
               buildCameraButton(screenHeight),
               buildTextBox('Title', titleTextEditingController),
+              const SizedBox(
+                height: 16,
+              ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: pickDateDialog,
+                    child: Container(
+                      height: 50,
+                      alignment: Alignment.centerLeft,
+                      width: MediaQuery.of(context).size.width*0.9,
+                      padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey)),
+                        child: Text(selectedDate)),
+                  ),
+                ],
+              ),
               buildTextBox('Description', decTextEditingController,
-                  height: 200),
+                  height: 130),
               SizedBox(
                   width: 120,
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () async {
+                      String imgPath =
+                          widget.imageUrl == null ? '' : widget.imageUrl!;
+                      if (imageFile != null) {
+                        final Directory directory =
+                            await getApplicationDocumentsDirectory();
+                        final String path = directory.path;
+                        var rng = Random();
+                        final File newImage = await imageFile!.copy(
+                            '$path/${DateTime.now().toString()}${rng.nextInt(100)}.jpg');
+                        imgPath = newImage.path;
+                      }
+                      print(imgPath);
+                      bool isSuccess;
+                      if (widget.isAdd) {
+                        isSuccess = await dbHelper.saveBlog(Blog(
+                            title: titleTextEditingController.text,
+                            description: decTextEditingController.text,
+                            imgPath: imgPath,
+                            date: selectedDate));
+                      } else {
+                        isSuccess = await dbHelper.updateBlog(Blog(
+                            id: widget.id!,
+                            title: titleTextEditingController.text,
+                            description: decTextEditingController.text,
+                            imgPath: imgPath,
+                            date: selectedDate));
+                      }
+                      if (isSuccess) {
+                        Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: ((context) => const Home())));
+                      }
+                    },
                     child: Text(
                       widget.isAdd ? 'Save' : 'Update',
                       style: const TextStyle(
@@ -73,6 +138,23 @@ class _BlogAddEditState extends State<BlogAddEdit> {
         ),
       ),
     );
+  }
+
+  void pickDateDialog() {
+    showDatePicker(
+            context: context,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(2000),
+            lastDate: DateTime.now())
+        .then((pickedDate) {
+      if (pickedDate == null) {
+        return;
+      }
+      setState(() {
+        selectedDate =
+            "${pickedDate.day.toString().padLeft(2,'0')}-${pickedDate.month.toString().padLeft(2,'0')}-${pickedDate.year}";
+      });
+    });
   }
 
   InkWell buildCameraButton(double screenHeight) {
@@ -91,7 +173,7 @@ class _BlogAddEditState extends State<BlogAddEdit> {
                     ? DecorationImage(
                         image: FileImage(imageFile!), fit: BoxFit.cover)
                     : DecorationImage(
-                        image: NetworkImage(widget.imageUrl!),
+                        image: FileImage(File(widget.imageUrl!)),
                         fit: BoxFit.cover)),
         child: imageFile == null && widget.imageUrl == null
             ? Icon(
@@ -111,7 +193,7 @@ class _BlogAddEditState extends State<BlogAddEdit> {
       height: height,
       margin: const EdgeInsets.only(top: 32),
       child: TextField(
-        maxLines: height > 50 ? 6 : 1,
+        maxLines: height > 50 ? 4 : 1,
         controller: searchTextEditingController,
         keyboardType: TextInputType.text,
         decoration: InputDecoration(

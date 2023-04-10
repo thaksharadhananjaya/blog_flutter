@@ -1,7 +1,13 @@
+import 'dart:io';
+
+import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:blog/config.dart';
 import 'package:blog/pages/add-edit-blog.dart';
 import 'package:blog/pages/view-blog.dart';
 import 'package:flutter/material.dart';
+
+import '../db-helper.dart';
+import '../models/blog.model.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -13,7 +19,8 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   final TextEditingController searchTextEditingController =
       TextEditingController();
-
+  List<int> selectedList = [];
+  DBHelper dbHelper = DBHelper();
   @override
   Widget build(BuildContext context) {
     final double screenHeight = MediaQuery.of(context).size.height;
@@ -27,6 +34,54 @@ class _HomeState extends State<Home> {
           child: Column(
             children: [
               buildSearchTextBox(searchTextEditingController),
+              selectedList.isNotEmpty
+                  ? SizedBox(
+                      height: 60,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            selectedList.length == 1
+                                ? '${selectedList.length} item Selected'
+                                : '${selectedList.length} items Selected',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  AwesomeDialog(
+                                    context: context,
+                                    dialogType: DialogType.warning,
+                                    animType: AnimType.rightSlide,
+                                    title: 'Dialog Blog(s)',
+                                    desc: 'Are you sure delete ?',
+                                    btnOkColor: Colors.orange,
+                                    btnCancelColor: ThemeData().primaryColor,
+                                    btnCancelOnPress: () {},
+                                    btnOkOnPress: () async {
+                                      for (int id in selectedList) {
+                                        await dbHelper.deleteBlog(id);
+                                      }
+                                      setState(() {
+                                        selectedList.clear();
+                                      });
+                                    },
+                                  ).show();
+                                },
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                tooltip: 'Delete selected',
+                              )
+                            ],
+                          )
+                        ],
+                      ),
+                    )
+                  : const SizedBox(),
               buildPostsList(screenHeight)
             ],
           ),
@@ -55,6 +110,9 @@ class _HomeState extends State<Home> {
         controller: searchTextEditingController,
         textInputAction: TextInputAction.search,
         keyboardType: TextInputType.text,
+        onChanged: (text) {
+          setState(() {});
+        },
         decoration: const InputDecoration(
             suffixIcon: Icon(Icons.search),
             border: OutlineInputBorder(),
@@ -65,28 +123,53 @@ class _HomeState extends State<Home> {
 
   SizedBox buildPostsList(double screenHeight) {
     return SizedBox(
-      height: screenHeight * 0.87,
-      child: ListView.builder(
-          itemCount: 4,
-          itemBuilder: ((context, index) {
-            return buildBlogCard(
-                'Title - $index',
-                'https://thumbs.dreamstime.com/b/landscape-nature-mountan-alps-rainbow-76824355.jpg',
-                '2023-04-08',
-                "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged.",
-                3 == index);
-          })),
+      height: selectedList.isEmpty ? screenHeight * 0.88 : screenHeight * 0.80,
+      child: FutureBuilder<List<Blog>>(
+          future: searchTextEditingController.text.isEmpty
+              ? dbHelper.getBlogs()
+              : dbHelper.getBlogByTitle(searchTextEditingController.text),
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              List<Blog> data = snapshot.data!;
+              if (data.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'Blogs Not Found !',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
+                  ),
+                );
+              }
+              return ListView.builder(
+                  itemCount: data.length,
+                  itemBuilder: ((context, index) {
+                    return buildBlogCard(
+                        data[index].title,
+                        data[index].imgPath,
+                        data[index].date!,
+                        data[index].description,
+                        data.length - 1 == index,
+                        data[index].id!);
+                  }));
+            }
+            return const CircularProgressIndicator();
+          }),
     );
   }
 
   InkWell buildBlogCard(String title, String imageUrl, String date,
-      String description, bool isExtraMargin) {
+      String description, bool isExtraMargin, int id) {
     return InkWell(
+      onLongPress: () {
+        setState(() {
+          selectedList.add(id);
+        });
+      },
       onTap: () {
         Navigator.push(
             context,
             MaterialPageRoute(
                 builder: ((context) => ViewBlog(
+                    id: id,
                     date: date,
                     imageUrl: imageUrl,
                     title: title,
@@ -99,9 +182,13 @@ class _HomeState extends State<Home> {
         decoration: BoxDecoration(
           image: DecorationImage(
               fit: BoxFit.cover,
-              colorFilter: ColorFilter.mode(
-                  Colors.black.withOpacity(0.4), BlendMode.colorBurn),
-              image: NetworkImage(imageUrl)),
+              colorFilter: selectedList.contains(id)
+                  ? ColorFilter.mode(
+                      const Color.fromARGB(255, 77, 132, 177).withOpacity(0.8),
+                      BlendMode.colorBurn)
+                  : ColorFilter.mode(
+                      Colors.black.withOpacity(0.4), BlendMode.colorBurn),
+              image: FileImage(File(imageUrl))),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Stack(
@@ -118,14 +205,15 @@ class _HomeState extends State<Home> {
               alignment: Alignment.bottomRight,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Icon(
-                    Icons.date_range,
-                    color: kTitleTextColor,
-                    size: 18,
-                  ),
-                  const SizedBox(
-                    width: 8,
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 2, right: 8),
+                    child: Icon(
+                      Icons.date_range,
+                      color: kTitleTextColor,
+                      size: 18,
+                    ),
                   ),
                   Text(
                     date,
@@ -137,6 +225,22 @@ class _HomeState extends State<Home> {
                 ],
               ),
             ),
+            selectedList.contains(id)
+                ? Align(
+                    alignment: Alignment.bottomLeft,
+                    child: InkWell(
+                      child: const Icon(
+                        Icons.done,
+                        color: Colors.blue,
+                        size: 32,
+                      ),
+                      onTap: () {
+                        setState(() {
+                          selectedList.remove(id);
+                        });
+                      },
+                    ))
+                : const SizedBox(),
           ],
         ),
       ),

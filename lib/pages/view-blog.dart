@@ -1,22 +1,31 @@
+// ignore_for_file: use_build_context_synchronously
+
+import 'dart:io';
+
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../config.dart';
+import '../db-helper.dart';
 import 'add-edit-blog.dart';
+import 'home.dart';
 
 class ViewBlog extends StatelessWidget {
   final String imageUrl, title, description, date;
+  final int? id;
   const ViewBlog({
     super.key,
     required this.imageUrl,
     required this.title,
     required this.description,
     required this.date,
+    required this.id,
   });
-
   @override
   Widget build(BuildContext context) {
     final double screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: Padding(
@@ -56,7 +65,10 @@ class ViewBlog extends StatelessWidget {
                   style: const TextStyle(fontSize: 18),
                   textAlign: TextAlign.justify,
                 ),
-              ),const SizedBox(height: 100,)
+              ),
+              const SizedBox(
+                height: 100,
+              )
             ],
           ),
         ),
@@ -65,12 +77,24 @@ class ViewBlog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           FloatingActionButton(
+            heroTag: "btn0",
+            onPressed: () {
+              Share.shareXFiles([XFile(imageUrl)],
+                  subject: title, text: description);
+            },
+            child: const Icon(Icons.share),
+          ),
+          const SizedBox(
+            width: 8,
+          ),
+          FloatingActionButton(
             heroTag: "btn1",
             onPressed: () {
               Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: ((context) => BlogAddEdit(
+                            id: id,
                             isAdd: false,
                             imageUrl: imageUrl,
                             title: title,
@@ -94,7 +118,7 @@ class ViewBlog extends StatelessWidget {
                 btnOkColor: Colors.orange,
                 btnCancelColor: ThemeData().primaryColor,
                 btnCancelOnPress: () {},
-                btnOkOnPress: () {},
+                btnOkOnPress: () => delete(context),
               ).show();
             },
             backgroundColor: Colors.red,
@@ -113,9 +137,15 @@ class ViewBlog extends StatelessWidget {
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           image: DecorationImage(
-              image: NetworkImage(imageUrl), fit: BoxFit.cover)),
+              image: FileImage(File(imageUrl)), fit: BoxFit.cover)),
     );
   }
 
-  void delete() {}
+  void delete(BuildContext context) async {
+    DBHelper dbHelper = DBHelper();
+
+    await dbHelper.deleteBlog(id!);
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: ((context) => const Home())));
+  }
 }
