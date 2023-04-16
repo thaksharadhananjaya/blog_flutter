@@ -7,7 +7,6 @@ import 'package:blog/models/blog.model.dart';
 import 'package:blog/pages/home.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../config.dart';
@@ -32,7 +31,7 @@ class BlogAddEdit extends StatefulWidget {
 
 class _BlogAddEditState extends State<BlogAddEdit> {
   String selectedDate =
-      "${DateTime.now().day.toString().padLeft(2,'0')}-${DateTime.now().month.toString().padLeft(2,'0')}-${DateTime.now().year}";
+      "${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().year}";
   DBHelper dbHelper = DBHelper();
   final ImagePicker picker = ImagePicker();
   File? imageFile;
@@ -75,10 +74,10 @@ class _BlogAddEditState extends State<BlogAddEdit> {
                   InkWell(
                     onTap: pickDateDialog,
                     child: Container(
-                      height: 50,
-                      alignment: Alignment.centerLeft,
-                      width: MediaQuery.of(context).size.width*0.9,
-                      padding: const EdgeInsets.all(4),
+                        height: 50,
+                        alignment: Alignment.centerLeft,
+                        width: MediaQuery.of(context).size.width * 0.9,
+                        padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: Colors.grey)),
@@ -104,27 +103,39 @@ class _BlogAddEditState extends State<BlogAddEdit> {
                             '$path/${DateTime.now().toString()}${rng.nextInt(100)}.jpg');
                         imgPath = newImage.path;
                       }
-                      print(imgPath);
+
                       bool isSuccess;
-                      if (widget.isAdd) {
-                        isSuccess = await dbHelper.saveBlog(Blog(
-                            title: titleTextEditingController.text,
-                            description: decTextEditingController.text,
-                            imgPath: imgPath,
-                            date: selectedDate));
+                      if (titleTextEditingController.text.isNotEmpty &&
+                          selectedDate != '' &&
+                          imgPath != '') {
+                        if (widget.isAdd) {
+                          isSuccess = await dbHelper.saveBlog(Blog(
+                              title: titleTextEditingController.text,
+                              description: decTextEditingController.text,
+                              imgPath: imgPath,
+                              date: selectedDate));
+                        } else {
+                          isSuccess = await dbHelper.updateBlog(Blog(
+                              id: widget.id!,
+                              title: titleTextEditingController.text,
+                              description: decTextEditingController.text,
+                              imgPath: imgPath,
+                              date: selectedDate));
+                        }
+                        if (isSuccess) {
+                          Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                  builder: ((context) => const Home())));
+                        }
                       } else {
-                        isSuccess = await dbHelper.updateBlog(Blog(
-                            id: widget.id!,
-                            title: titleTextEditingController.text,
-                            description: decTextEditingController.text,
-                            imgPath: imgPath,
-                            date: selectedDate));
-                      }
-                      if (isSuccess) {
-                        Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                                builder: ((context) => const Home())));
+                        SnackBar snackBar = const SnackBar(
+                          content: Text(
+                            'Image, title and date are required !',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(snackBar);
                       }
                     },
                     child: Text(
@@ -152,7 +163,7 @@ class _BlogAddEditState extends State<BlogAddEdit> {
       }
       setState(() {
         selectedDate =
-            "${pickedDate.day.toString().padLeft(2,'0')}-${pickedDate.month.toString().padLeft(2,'0')}-${pickedDate.year}";
+            "${pickedDate.day.toString().padLeft(2, '0')}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.year}";
       });
     });
   }
@@ -202,20 +213,23 @@ class _BlogAddEditState extends State<BlogAddEdit> {
     );
   }
 
-  Future<dynamic> showBottomSheet() {
-    return showMaterialModalBottomSheet(
+  Future showBottomSheet() {
+    return showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SizedBox(
-        height: 100,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            bottomButton('Camera', Icons.camera_alt, () => pickImage(true)),
-            bottomButton('Gallery', Icons.photo, () => pickImage(false)),
-          ],
-        ),
-      ),
+      builder: (BuildContext context) {
+        return Container(
+          height: 100,
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              bottomButton('Camera', Icons.camera_alt, () => pickImage(true)),
+              bottomButton('Gallery', Icons.photo, () => pickImage(false)),
+            ],
+          ),
+        );
+      },
     );
   }
 

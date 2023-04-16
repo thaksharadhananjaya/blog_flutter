@@ -113,9 +113,13 @@ class _HomeState extends State<Home> {
         onChanged: (text) {
           setState(() {});
         },
-        decoration: const InputDecoration(
-            suffixIcon: Icon(Icons.search),
-            border: OutlineInputBorder(),
+        decoration: InputDecoration(
+            suffixIcon: InkWell(
+                onTap: () {
+                  setState(() {});
+                },
+                child: const Icon(Icons.search)),
+            border: const OutlineInputBorder(),
             labelText: 'Search'),
       ),
     );
